@@ -5,6 +5,7 @@ const { connectDb } = require("./config/database.js");
 const { User } = require("./models/userModel.js");
 const { validatorSignup } = require("./utils/validation.js");
 const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middleware/auth.js");
 const app = express();
 
 app.use(express.json());
@@ -41,40 +42,12 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-//find all
-app.get("/signup", async (req, res) => {
-  // const reqEmail = req.body.email;
-
-  const find = await User.find({});
-  res.send(find);
+app.post("/sendreq",userAuth,(req,res)=>{
+   res.send("middleware working");
 });
 
-//find by id
-app.get("/signup", async (req, res) => {
-  const reqEmail = req.body.email;
 
-  const find = await User.find({ email: reqEmail });
-  res.send(find);
-});
 
-//delete by id
-app.delete("/user", async (req, res) => {
-  const userId = req.body.userId;
-  const user = await User.findByIdAndDelete(userId);
-
-  res.send("deleted the collection");
-});
-
-//update
-
-app.patch("/user", async (req, res) => {
-  const userId = req.body.userId;
-  const data = req.body;
-  const updateUser = await User.findOneAndUpdate({ _id: userId }, data);
-  res.send("updated complete");
-});
-
-//authenticate
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -82,11 +55,10 @@ app.post("/login", async (req, res) => {
   if (!user) {
     throw new Error("user is not in the data");
   }
-  const passwordValid = await bcrypt.compare(password, user.password);
+  const passwordValid = await user.validatePassword(password);
+
   if (passwordValid) {
-    const payload = { userId: user.id, email: user.email };
-    const secretKey = "MYsec";
-    const token = jwt.sign(payload, secretKey);
+    const token = await user.getJWT();
     res.cookie("token", token);
     console.log(token);
     res.send("login successfull");
@@ -95,41 +67,18 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/profile", async (req, res) => {
+app.get("/profile", userAuth, async (req, res) => {
   try {
-    //geting cookies
-    const cookies = req.cookies;
-    const { token } = cookies;
+    const user = req.user;
 
-
-     //check token has cookies or not
-    if (!token) {
-      return res.status(401).send("No token provided");
-    }
-    
-
-    //checking cookies has correct code and extract userid
-    const decodedMsg = await jwt.verify(token, "MYsec");
-    const { userId } = decodedMsg;
-  //  const decodedMsg = await jwt.verify(token, "MYsec");
-   // console.log("Decoded JWT:", decodedMsg);
-    
-  //  console.log(_id);
-
-   // If you're going to fetch user, uncomment and use the lines below
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).send("User not found");
-    }
     res.send(user);
 
-    res.send("Token is valid and user ID is: " + _id); // temporary success response
+    //  res.send("Token is valid and user ID is: " + _id); // temporary success response
   } catch (error) {
     console.error(error); // helps debugging
     res.status(400).send("Error in token validation");
   }
 });
-
 
 connectDb()
   .then(() => {
